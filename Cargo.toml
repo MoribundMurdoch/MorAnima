@@ -1,0 +1,23 @@
+[package]
+name = "moranima"
+version = "0.1.0"
+edition = "2021"
+description = "MorAnima — layer multiple animation effects (blink, talk, background FX) on a still character image and export a Kdenlive-ready frame sequence."
+license = "Unlicense"
+
+[dependencies]
+dioxus = { version = "0.7", features = ["desktop"] }
+image = "0.25"
+rand = "0.8"
+base64 = "0.22"
+rfd = "0.15"
+tokio = { version = "1", features = ["time", "rt"] }
+
+# CPU pixel work is unusable at opt-level 0
+[profile.dev]
+opt-level = 2
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
