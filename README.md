@@ -4,6 +4,12 @@ Bring a still character image to life. MorAnima is a desktop app that layers ani
 
 Trace your character's eyes and mouth once with a few clicks; MorAnima does the rest with pure pixel warping. No rigging, no sprite sheets, no per-frame drawing.
 
+![MorAnima with a character loaded, eyes and mouth traced, timeline below](docs/Hero-Shot.png)
+
+| Trace eyes with a few clicks | An exported frame, jaw mid-drop |
+| :---: | :---: |
+| ![Eye polygons traced on a character](docs/tracing-close-up.png) | ![Exported frame with the mouth animated open](docs/exported-result-example.png) |
+
 ## Features
 
 - **Blink** — trace each eye as a polygon and get natural liquify-style blinks: lids descend with stretched skin, a soft lash shadow, and feathered edges. Blinks are randomly scheduled and deterministic, so exports match the preview exactly.
@@ -18,6 +24,8 @@ Trace your character's eyes and mouth once with a few clicks; MorAnima does the 
   - MP4 (H.264) — plays everywhere
   - Looping animated GIF
   - Lossless PNG sequence for import into Kdenlive or any NLE
+
+  ![Export dialog with format picker and quality slider](docs/export-dialog.png)
 
 All effects preview live in the app with playback, a timeline, click-to-seek, zoom/pan, and keyboard shortcuts (press `F1` in-app for the full list).
 
