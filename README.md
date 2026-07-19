@@ -4,6 +4,8 @@ Bring a still character image to life. MorAnima is a desktop app that layers ani
 
 Trace your character's eyes and mouth once with a few clicks; MorAnima does the rest with pure pixel warping. No rigging, no sprite sheets, no per-frame drawing.
 
+**[▶ Try the web version](https://moribundmurdoch.github.io/MorAnima/)** — the same effects ported to canvas + WebAudio, running entirely in your browser ([source](docs/index.html)). The desktop app remains the full studio: the web version exports WebM only (no MP4/GIF/PNG-sequence), and skips the perspective-tilt background motion.
+
 ![MorAnima with a character loaded, eyes and mouth traced, timeline below](docs/Hero-Shot.png)
 
 | Trace eyes with a few clicks | An exported frame, jaw mid-drop |

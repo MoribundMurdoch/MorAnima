@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MorAnima — Web Studio</title>
+<meta name="description" content="Animate a still character image in your browser: blink, lip-sync to audio, background FX. Export WebM.">
+<style>
+  :root {
+    --bg: #0b0e1a; --panel: #101527; --edge: #232a45; --text: #cdd3e8;
+    --muted: #6f7799; --accent: #52c8dc; --gold: #e8c547; --pink: #f06a9a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, sans-serif; }
+  header { display: flex; align-items: baseline; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--edge); }
+  header h1 { font-size: 16px; letter-spacing: .25em; margin: 0; color: var(--gold); font-variant: small-caps; }
+  header .sub { color: var(--muted); font-size: 12px; letter-spacing: .15em; }
+  header a { margin-left: auto; color: var(--accent); text-decoration: none; font-size: 12px; }
+  header a:hover { text-decoration: underline; }
+  main { display: grid; grid-template-columns: 300px 1fr; min-height: calc(100vh - 42px); }
+  @media (max-width: 800px) { main { grid-template-columns: 1fr; } }
+  aside { background: var(--panel); border-right: 1px solid var(--edge); padding: 12px 14px 40px; overflow-y: auto; max-height: calc(100vh - 42px); }
+  details { border-bottom: 1px solid var(--edge); padding: 6px 0; }
+  summary { cursor: pointer; color: var(--gold); font-variant: small-caps; letter-spacing: .12em; user-select: none; }
+  .row { display: flex; align-items: center; gap: 8px; margin: 8px 0; flex-wrap: wrap; }
+  .row label { flex: 1; color: var(--text); min-width: 90px; }
+  .row .val { color: var(--accent); font-family: monospace; min-width: 38px; text-align: right; }
+  input[type=range] { flex: 2; accent-color: var(--accent); min-width: 100px; }
+  input[type=number] { width: 60px; background: var(--bg); color: var(--text); border: 1px solid var(--edge); border-radius: 4px; padding: 3px 5px; }
+  select { background: var(--bg); color: var(--text); border: 1px solid var(--edge); border-radius: 4px; padding: 3px 5px; flex: 2; }
+  button { background: #18203a; color: var(--text); border: 1px solid var(--edge); border-radius: 5px; padding: 6px 10px; cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  button:disabled { opacity: .4; cursor: default; }
+  button.primary { border-color: var(--accent); color: var(--accent); }
+  .hint { color: var(--muted); font-size: 12px; margin: 4px 0; }
+  #stage { display: flex; flex-direction: column; align-items: center; padding: 14px; gap: 10px; }
+  #wrap { position: relative; max-width: 100%;
+    background: repeating-conic-gradient(#171c30 0 25%, #121627 0 50%) 0 0 / 24px 24px; border: 1px solid var(--edge); }
+  #cv { display: block; max-width: 100%; height: auto; }
+  #drop { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: var(--muted); font-size: 15px; text-align: center; padding: 30px; pointer-events: none; }
+  #transport { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  #time { font-family: monospace; color: var(--accent); }
+  #status { color: var(--muted); font-size: 12px; min-height: 1.2em; text-align: center; }
+  .keys { color: var(--muted); font-size: 11px; text-align: center; max-width: 640px; }
+  kbd { background: #18203a; border: 1px solid var(--edge); border-radius: 3px; padding: 0 5px; font-size: 11px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>MorAnima</h1><span class="sub">WEB STUDIO</span>
+  <a href="https://github.com/MoribundMurdoch/MorAnima">Desktop version &amp; source ↗</a>
+</header>
+<main>
+<aside>
+  <details open><summary>Character</summary>
+    <div class="row"><button id="openImg" class="primary">Open Image…</button><button id="resetImg" disabled>Reset</button></div>
+    <div class="row"><button id="bgRemove" disabled>Remove Background</button></div>
+    <div class="row"><label>Tolerance</label><input type="range" id="bgTol" min="0" max="120" step="1" value="30"><span class="val" id="bgTolV">30</span></div>
+    <p class="hint">Background removal detects the two most common border colors and makes them transparent.</p>
+  </details>
+  <details open><summary>Trace</summary>
+    <div class="row"><label>Tracing</label><select id="traceSel"><option value="none">— off —</option><option value="eye">Eyes</option><option value="mouth">Mouth</option></select></div>
+    <div class="row"><button id="finishEye" disabled>Finish Eye ⏎</button><button id="undoPt" disabled>Undo Point</button><button id="clearTrace" disabled>Clear</button></div>
+    <p class="hint" id="traceInfo">Click the image to outline a shape. Drag points to adjust; right-click deletes the nearest point.</p>
+  </details>
+  <details open><summary>Blink</summary>
+    <div class="row"><label><input type="checkbox" id="blinkOn" checked> Enable blinking</label><button id="reshuffle">↻ Reschedule</button></div>
+  </details>
+  <details open><summary>Talk</summary>
+    <div class="row"><label><input type="checkbox" id="talkOn" checked> Enable talking</label></div>
+    <div class="row"><label>Jaw drop</label><input type="range" id="jawPct" min="0.05" max="1" step="0.01" value="0.55"><span class="val" id="jawPctV">0.55</span></div>
+    <div class="row"><label>Talk amount</label><input type="range" id="talkAmt" min="0" max="1.5" step="0.01" value="0.85"><span class="val" id="talkAmtV">0.85</span></div>
+    <div class="row"><label>Inner mouth</label><input type="color" id="innerCol" value="#1a0a0a"></div>
+    <div class="row"><button id="loadAudio">♪ Load Audio — lip-sync…</button><button id="clearAudio" disabled>✕</button></div>
+    <div id="audioCtl" style="display:none">
+      <div class="row"><label>Sensitivity</label><input type="range" id="sens" min="0.5" max="4" step="0.05" value="1.75"><span class="val" id="sensV">1.75</span></div>
+      <div class="row"><label>Noise gate</label><input type="range" id="gate" min="0" max="0.3" step="0.005" value="0.015"><span class="val" id="gateV">0.015</span></div>
+      <div class="row"><label>Smoothing</label><input type="range" id="smooth" min="0" max="1" step="0.05" value="0.2"><span class="val" id="smoothV">0.20</span></div>
+    </div>
+    <p class="hint">Without audio, the jaw moves to a built-in speech rhythm.</p>
+  </details>
+  <details><summary>Background</summary>
+    <div class="row"><button id="loadBg">Load BG Image…</button><button id="clearBg" disabled>✕</button></div>
+    <div class="row"><label>Motion</label><select id="bgMotion"><option>Static</option><option>Zoom</option><option>Drift</option><option>Sway</option></select></div>
+    <div class="row"><label>Speed</label><input type="range" id="bgSpeed" min="0.1" max="3" step="0.05" value="1"><span class="val" id="bgSpeedV">1.00</span></div>
+    <div class="row"><label>Amount</label><input type="range" id="bgAmt" min="0" max="1" step="0.05" value="0.5"><span class="val" id="bgAmtV">0.50</span></div>
+  </details>
+  <details><summary>Visualizer</summary>
+    <div class="row"><label><input type="checkbox" id="vizOn"> Enable</label></div>
+    <div class="row"><label>Kind</label><select id="vizKind"><option>Bars</option><option>Waves</option><option>Starfield</option><option>Fireflies</option><option>Snow</option><option>Embers</option></select></div>
+    <div class="row"><label>Speed</label><input type="range" id="vizSpeed" min="0.1" max="3" step="0.05" value="1"><span class="val" id="vizSpeedV">1.00</span></div>
+    <div class="row"><label>Hue</label><input type="range" id="vizHue" min="0" max="360" step="1" value="200"><span class="val" id="vizHueV">200</span></div>
+  </details>
+</aside>
+<section id="stage">
+  <div id="wrap">
+    <canvas id="cv" width="820" height="520"></canvas>
+    <div id="drop">Drop a character image here<br>or use <b>Open Image…</b></div>
+  </div>
+  <div id="transport">
+    <button id="play" class="primary" disabled>▶ Play</button>
+    <span id="time">0.00 / 6.0 s</span>
+    <label>Duration <input type="number" id="dur" min="1" max="60" step="0.5" value="6"></label>
+    <label>FPS <input type="number" id="fps" min="5" max="60" step="1" value="25"></label>
+    <button id="expWebm" disabled>Export WebM…</button>
+    <button id="expPng" disabled>Save Frame PNG</button>
+  </div>
+  <div id="status"></div>
+  <p class="keys"><kbd>Space</kbd> play/pause · <kbd>Enter</kbd> finish eye · <kbd>Esc</kbd> cancel trace · <kbd>Backspace</kbd> undo point · right-click deletes nearest point</p>
+</section>
+</main>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const TAU = Math.PI * 2, MEET = 0.72, BLINK_LEN = 0.35;
+const clamp = (v, a, b) => Math.min(Math.max(v, a), b);
+const ease = t => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
+
+// ---------- state ----------
+let W = 0, H = 0;
+let originalData = null;   // ImageData as loaded
+let baseData = null;       // after optional bg removal
+let bgRemoved = false;
+let eyes = [], curEye = [], mouth = [];
+let blinkStarts = [];
+let audioBuf = null, audioMono = null, envelope = null, audioEl = null;
+let bgCanvas = null;       // cover-scaled background image
+let playing = false, playT0 = 0, tCur = 0, lastDraw = 0;
+let exporting = false;
+
+const S = {
+  blinkOn: true, talkOn: true, jawPct: 0.55, talkAmt: 0.85, innerCol: [26, 10, 10],
+  sens: 1.75, gate: 0.015, smooth: 0.2, bgTol: 30,
+  bgMotion: 'Static', bgSpeed: 1, bgAmt: 0.5,
+  vizOn: false, vizKind: 'Bars', vizSpeed: 1, vizHue: 200,
+  dur: 6, fps: 25, trace: 'none',
+};
+
+const cv = $('cv'), ctx = cv.getContext('2d');
+const charCanvas = document.createElement('canvas'), charCtx = charCanvas.getContext('2d');
+let wavesCanvas = null; // low-res buffer for the Waves visualizer
+
+// ---------- geometry / pixel helpers (ports of effects.rs) ----------
+function pointInPoly(px, py, pts) {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i], [xj, yj] = pts[j];
+    if ((yi > py) !== (yj > py) && px < (xj - xi) * (py - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+function bbox(pts) {
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  const x0 = Math.max(Math.floor(Math.min(...xs)), 0), y0 = Math.max(Math.floor(Math.min(...ys)), 0);
+  const x1 = Math.min(Math.ceil(Math.max(...xs)), W - 1), y1 = Math.min(Math.ceil(Math.max(...ys)), H - 1);
+  return (x0 < x1 && y0 < y1) ? [x0, y0, x1, y1] : null;
+}
+function bilinear(d, x, y, out) {
+  x = clamp(x, 0, W - 1); y = clamp(y, 0, H - 1);
+  const x0 = x | 0, y0 = y | 0, x1 = Math.min(x0 + 1, W - 1), y1 = Math.min(y0 + 1, H - 1);
+  const fx = x - x0, fy = y - y0;
+  const i00 = (y0 * W + x0) * 4, i10 = (y0 * W + x1) * 4, i01 = (y1 * W + x0) * 4, i11 = (y1 * W + x1) * 4;
+  for (let c = 0; c < 4; c++) {
+    const top = d[i00 + c] * (1 - fx) + d[i10 + c] * fx;
+    const bot = d[i01 + c] * (1 - fx) + d[i11 + c] * fx;
+    out[c] = Math.round(top * (1 - fy) + bot * fy);
+  }
+}
+const shade = (px, k) => { for (let c = 0; c < 3; c++) px[c] = (px[c] * k) | 0; };
+function hash01(n) {
+  let x = Math.imul(n, 2654435761) >>> 0;
+  x ^= x >>> 16; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13;
+  return (x % 10000) / 10000;
+}
+function hsv(h, s, v) {
+  h = ((h % 360) + 360) % 360 / 60;
+  const c = v * s, x = c * (1 - Math.abs(h % 2 - 1)), m = v - c;
+  const [r, g, b] = [[c,x,0],[x,c,0],[0,c,x],[0,x,c],[x,0,c],[c,0,x]][h | 0];
+  return [(r + m) * 255 | 0, (g + m) * 255 | 0, (b + m) * 255 | 0];
+}
+
+// ---------- background removal ----------
+function removeBackground(src, tol) {
+  const d = src.data, counts = new Map();
+  const sample = (x, y) => { const i = (y * W + x) * 4, k = (d[i] << 16) | (d[i+1] << 8) | d[i+2]; counts.set(k, (counts.get(k) || 0) + 1); };
+  for (let x = 0; x < W; x++) { sample(x, 0); sample(x, H - 1); }
+  for (let y = 0; y < H; y++) { sample(0, y); sample(W - 1, y); }
+  const bgs = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2)
+    .map(([k]) => [k >> 16 & 255, k >> 8 & 255, k & 255]);
+  const thr = tol * tol, out = new ImageData(new Uint8ClampedArray(d), W, H), o = out.data;
+  for (let i = 0; i < o.length; i += 4) {
+    for (const bg of bgs) {
+      const dr = o[i] - bg[0], dg = o[i+1] - bg[1], db = o[i+2] - bg[2];
+      if (dr*dr + dg*dg + db*db <= thr) { o[i+3] = 0; break; }
+    }
+  }
+  return out;
+}
+
+// ---------- blink (liquify warp) ----------
+function blinkCurve(x) {
+  if (x < 0 || x >= BLINK_LEN) return 0;
+  x /= BLINK_LEN;
+  return x < 0.4 ? ease(x / 0.4) : x < 0.55 ? 1 : ease(1 - (x - 0.55) / 0.45);
+}
+const closenessAt = t => blinkStarts.reduce((m, s) => Math.max(m, blinkCurve(t - s)), 0);
+
+function warpEye(frame, open, pts, c) {
+  if (pts.length < 3 || c <= 0) return;
+  const bb = bbox(pts); if (!bb) return;
+  const [bx0, by0, bx1, by1] = bb, ce = ease(c), cols = bx1 - bx0 + 1;
+  const top = new Float32Array(cols).fill(NaN), bot = new Float32Array(cols).fill(NaN);
+  for (let i = 0; i < cols; i++) {
+    const x = bx0 + i;
+    for (let y = by0; y <= by1; y++)
+      if (pointInPoly(x + 0.5, y + 0.5, pts)) { if (isNaN(top[i])) top[i] = y; bot[i] = y; }
+  }
+  const sm = v => v.map((val, i) => {
+    const l = i > 0 ? v[i-1] : val, r = i + 1 < v.length ? v[i+1] : val;
+    return (isNaN(l) || isNaN(r)) ? val : (l + 2 * val + r) / 4;
+  });
+  const topS = sm(top), botS = sm(bot);
+  let maxh = 0;
+  for (let i = 0; i < cols; i++) maxh = Math.max(maxh, botS[i] - topS[i]);
+  if (maxh <= 0) return;
+  const feather = 1.5;
+  const distX = new Float32Array(cols);
+  let run = 0;
+  for (let i = 0; i < cols; i++) { run = isNaN(topS[i]) ? 0 : run + 1; distX[i] = run; }
+  run = 0;
+  for (let i = cols - 1; i >= 0; i--) { run = isNaN(topS[i]) ? 0 : run + 1; distX[i] = Math.min(distX[i], run); }
+  const px = [0, 0, 0, 0];
+  for (let i = 0; i < cols; i++) {
+    const x = bx0 + i, t = topS[i], b = botS[i];
+    if (isNaN(t) || b <= t) continue;
+    const meet = t + MEET * (b - t), u = t + ce * (meet - t), l = b - ce * (b - meet);
+    const corner = clamp((b - t) / (0.35 * maxh), 0, 1);
+    for (let y = by0; y <= by1; y++) {
+      const idx = (y * W + x) * 4, a = open[idx + 3];
+      if (a <= 8 || !pointInPoly(x + 0.5, y + 0.5, pts)) continue;
+      const yf = y;
+      if (yf < u) {
+        bilinear(open, x, t - 1.5 - (u - yf) * 0.3, px);
+        const depth = u > t ? clamp((yf - t) / (u - t), 0, 1) : 1;
+        shade(px, 1 - 0.14 * depth * ce);
+      } else if (yf > l) {
+        bilinear(open, x, b + 1.5 + (yf - l) * 0.3, px);
+        shade(px, 1 - 0.06 * ce);
+      } else {
+        bilinear(open, x, t + (yf - u) / Math.max(l - u, 0.01) * (b - t), px);
+      }
+      const d = Math.abs(yf - u);
+      if (d < 1.8) shade(px, 1 - 0.45 * ce * corner * (1 - d / 1.8));
+      const fd = Math.max(Math.min(yf - t, distX[i]), 0);
+      const w = ease(Math.min(fd / feather, 1));
+      for (let ch = 0; ch < 3; ch++) frame[idx + ch] = Math.round(open[idx + ch] * (1 - w) + px[ch] * w);
+      frame[idx + 3] = a;
+    }
+  }
+}
+
+// ---------- talk (jaw drop) ----------
+function jawDrop(frame, pts, amplitude, jawPct, inner) {
+  const out = frame.slice();
+  if (pts.length < 3 || amplitude <= 0.001) return out;
+  const bb = bbox(pts); if (!bb) return out;
+  const [bx0, by0, bx1, by1] = bb;
+  const ys = pts.map(p => p[1]);
+  const drop = Math.round(Math.max(Math.max(...ys) - Math.min(...ys), 1) * jawPct * amplitude);
+  if (drop < 1) return out;
+  for (let y = by0; y <= by1; y++)
+    for (let x = bx0; x <= bx1; x++)
+      if (pointInPoly(x + 0.5, y + 0.5, pts)) {
+        const i = (y * W + x) * 4;
+        out[i] = inner[0]; out[i+1] = inner[1]; out[i+2] = inner[2]; out[i+3] = 255;
+      }
+  for (let y = by1; y >= by0; y--)
+    for (let x = bx0; x <= bx1; x++)
+      if (pointInPoly(x + 0.5, y + 0.5, pts)) {
+        const sy = y + drop;
+        if (sy < H) {
+          const si = (y * W + x) * 4, di = (sy * W + x) * 4;
+          if (frame[si + 3] > 0) for (let c = 0; c < 4; c++) out[di + c] = frame[si + c];
+        }
+      }
+  return out;
+}
+const talkGate = t => clamp(((0.5 + 0.5 * Math.sin(TAU * 0.35 * t + 1.3)) - 0.35) / 0.15, 0, 1);
+const talkAmplitude = t => Math.pow(Math.abs(Math.sin(TAU * 4.2 * t)) * talkGate(t), 0.8);
+
+// ---------- audio envelope (bandpass + RMS, zero-phase) ----------
+function bandpass(fs, fl, fh) {
+  const nyq = fs / 2;
+  fl = clamp(fl, 20, nyq * 0.95); fh = clamp(fh, fl + 10, nyq * 0.99);
+  const f0 = Math.sqrt(fl * fh), bw = (fh - fl) / f0, w0 = TAU * f0 / fs;
+  const alpha = Math.sin(w0) * Math.sinh(Math.log(2) / 2 * bw * w0 / Math.sin(w0));
+  const a0 = 1 + alpha, b0 = alpha / a0, b2 = -alpha / a0, a1 = -2 * Math.cos(w0) / a0, a2 = (1 - alpha) / a0;
+  let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+  return x => { const y = b0 * x + b2 * x2 - a1 * y1 - a2 * y2; x2 = x1; x1 = x; y2 = y1; y1 = y; return y; };
+}
+function gaussianBlur1d(data, sigma) {
+  if (sigma <= 0) return data;
+  const radius = Math.ceil(sigma * 3), kernel = [];
+  let sum = 0;
+  for (let i = -radius; i <= radius; i++) { const v = Math.exp(-i * i / (2 * sigma * sigma)); kernel.push(v); sum += v; }
+  const out = new Float64Array(data.length);
+  for (let i = 0; i < data.length; i++) {
+    let v = 0;
+    for (let j = -radius; j <= radius; j++)
+      v += data[clamp(i + j, 0, data.length - 1)] * kernel[j + radius] / sum;
+    out[i] = v;
+  }
+  return out;
+}
+function computeEnvelope() {
+  if (!audioMono) { envelope = null; return; }
+  const sr = audioBuf.sampleRate;
+  const f1 = bandpass(sr, 60, 5000);
+  let filt = Float64Array.from(audioMono, x => f1(x));
+  filt.reverse();
+  const f2 = bandpass(sr, 60, 5000);
+  filt = Float64Array.from(filt, x => f2(x));
+  filt.reverse();
+  const spf = sr / S.fps, n = Math.ceil(audioMono.length / spf);
+  let env = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    const s = (i * spf) | 0, e = Math.min(((s + spf) | 0), filt.length);
+    if (s < e) {
+      let sq = 0;
+      for (let k = s; k < e; k++) sq += filt[k] * filt[k];
+      env[i] = Math.sqrt(sq / (e - s));
+    }
+  }
+  const mx = Math.max(...env);
+  if (mx > 0) for (let i = 0; i < n; i++) env[i] /= mx;
+  for (let i = 0; i < n; i++) {
+    let v = clamp(env[i] * S.sens, 0, 1);
+    v = v < S.gate ? 0 : (v - S.gate) / (1 - S.gate + 1e-6);
+    env[i] = Math.pow(clamp(v, 0, 1), 1.1);
+  }
+  if (S.smooth > 0) {
+    env = gaussianBlur1d(env, S.smooth * 8);
+    const m2 = Math.max(...env);
+    if (m2 > 0) for (let i = 0; i < env.length; i++) env[i] /= m2;
+  }
+  envelope = env;
+}
+
+// ---------- background & visualizers ----------
+function drawBg(c, t) {
+  // ponytail: canvas transforms instead of the desktop per-pixel inverse map —
+  // visually equivalent for these gentle moves; Tilt (trapezoid) not ported.
+  const amt = S.bgAmt, ph = TAU * 0.05 * S.bgSpeed * t;
+  let z = 1, rot = 0, dx = 0, dy = 0;
+  if (S.bgMotion === 'Zoom') z = 1 + amt * 0.12 * (0.5 + 0.5 * Math.sin(ph * 2));
+  else if (S.bgMotion === 'Drift') { z = 1 + amt * 0.08; dx = amt * 0.05 * W * Math.sin(ph * 2); dy = amt * 0.03 * H * Math.cos(ph * 1.3); }
+  else if (S.bgMotion === 'Sway') { z = 1 + amt * 0.06; rot = amt * 0.035 * Math.sin(ph * 2); }
+  c.save();
+  c.translate(W / 2 + dx, H / 2 + dy); c.rotate(rot); c.scale(z, z);
+  c.drawImage(bgCanvas, -W / 2, -H / 2);
+  c.restore();
+}
+const isOverlay = k => k === 'Fireflies' || k === 'Snow' || k === 'Embers';
+function glow(c, x, y, r, col, bright) {
+  if (r <= 0 || bright <= 0) return;
+  const g = c.createRadialGradient(x, y, 0, x, y, r);
+  g.addColorStop(0, `rgba(${col[0]},${col[1]},${col[2]},${clamp(bright, 0, 1)})`);
+  g.addColorStop(1, `rgba(${col[0]},${col[1]},${col[2]},0)`);
+  c.fillStyle = g;
+  c.fillRect(x - r, y - r, 2 * r, 2 * r);
+}
+function drawViz(c, t) {
+  const { vizSpeed: speed, vizHue: hue } = S;
+  if (!isOverlay(S.vizKind)) { c.fillStyle = '#0a0c12'; c.fillRect(0, 0, W, H); }
+  if (S.vizKind === 'Bars') {
+    const n = 48, bw = Math.max(W / n, 1);
+    for (let i = 0; i < n; i++) {
+      const a = Math.abs(Math.sin(t * speed * 3.1 + i * 1.7)) * (0.4 + 0.6 * Math.abs(Math.sin(t * speed * 1.3 + i * 0.31)));
+      const bh = Math.min(H * (0.05 + 0.85 * a), H);
+      const col = hsv(hue + i * 4, 0.75, 0.9);
+      c.fillStyle = `rgb(${col[0]},${col[1]},${col[2]})`;
+      c.fillRect(i * bw, H - bh, bw * 0.8, bh);
+    }
+  } else if (S.vizKind === 'Waves') {
+    // ponytail: per-pixel at quarter res, scaled up — full res is desktop-only.
+    const lw = Math.max(W >> 2, 1), lh = Math.max(H >> 2, 1);
+    if (!wavesCanvas || wavesCanvas.width !== lw) { wavesCanvas = document.createElement('canvas'); wavesCanvas.width = lw; wavesCanvas.height = lh; }
+    const wc = wavesCanvas.getContext('2d'), im = wc.createImageData(lw, lh), d = im.data;
+    for (let y = 0; y < lh; y++)
+      for (let x = 0; x < lw; x++) {
+        const v = 0.5 + 0.5 * Math.sin(x / lw * TAU * 3 + t * speed) * Math.sin(y / lh * TAU * 2 - t * speed * 0.7);
+        const col = hsv(hue + v * 70, 0.7, 0.2 + 0.6 * v), i = (y * lw + x) * 4;
+        d[i] = col[0]; d[i+1] = col[1]; d[i+2] = col[2]; d[i+3] = 255;
+      }
+    wc.putImageData(im, 0, 0);
+    c.drawImage(wavesCanvas, 0, 0, W, H);
+  } else if (S.vizKind === 'Starfield') {
+    c.fillStyle = '#fff';
+    for (let i = 0; i < 240; i++) {
+      const x = Math.min(hash01(i * 2 + 1) * W, W - 1) | 0;
+      const y = ((hash01(i * 2) * H + t * speed * 12 * (0.3 + hash01(i * 7))) % H) | 0;
+      const tw = 0.35 + 0.65 * Math.abs(Math.sin(t * speed * 2 + hash01(i * 3) * TAU));
+      c.globalAlpha = tw;
+      c.fillRect(x, y, 2, 2);
+    }
+    c.globalAlpha = 1;
+  } else if (S.vizKind === 'Fireflies') {
+    for (let i = 0; i < 60; i++) {
+      const x = ((hash01(i * 3 + 1) + 0.08 * Math.sin(t * speed * 0.3 * TAU * (0.5 + hash01(i * 5)) + hash01(i * 7) * TAU)) % 1 + 1) % 1 * W;
+      const y = ((hash01(i * 3 + 2) + 0.06 * Math.cos(t * speed * 0.25 * TAU * (0.5 + hash01(i * 11)) + hash01(i * 13) * TAU)) % 1 + 1) % 1 * H;
+      const pulse = 0.2 + 0.8 * Math.abs(Math.sin(t * speed * (1 + hash01(i * 17)) * 2 + hash01(i * 19) * TAU));
+      glow(c, x, y, H * 0.008 + 2, hsv(S.vizHue + hash01(i) * 30, 0.55, 1), pulse);
+    }
+  } else if (S.vizKind === 'Snow') {
+    for (let i = 0; i < 140; i++) {
+      const fall = ((hash01(i * 2) + t * speed * 0.05 * (0.5 + hash01(i * 3))) % 1 + 1) % 1;
+      const x = ((hash01(i * 5) + 0.03 * Math.sin(t * speed * 0.4 * TAU * (0.5 + hash01(i * 7)) + hash01(i * 11) * TAU)) % 1 + 1) % 1 * W;
+      glow(c, x, fall * H, H * 0.003 + 1 + hash01(i * 13) * 2, hsv(S.vizHue, 0.06, 1), 0.5 + 0.4 * hash01(i * 17));
+    }
+  } else if (S.vizKind === 'Embers') {
+    for (let i = 0; i < 90; i++) {
+      const prog = ((hash01(i * 2) + t * speed * 0.07 * (0.4 + hash01(i * 5))) % 1 + 1) % 1;
+      const x = ((hash01(i * 3) + 0.05 * prog * Math.sin(t * speed * 0.6 * TAU * (0.5 + hash01(i * 7)) + hash01(i * 11) * TAU)) % 1 + 1) % 1 * W;
+      glow(c, x, (1 - prog) * H, H * 0.004 + 1.5, hsv(S.vizHue + hash01(i * 13) * 25, 0.9, 1), (1 - prog) * 0.85 + 0.1);
+    }
+  }
+}
+
+// ---------- per-frame composition ----------
+function render(t) {
+  if (!baseData) return;
+  let frame = baseData.data.slice();
+  if (S.blinkOn && eyes.length) {
+    const c = closenessAt(t);
+    if (c > 0) {
+      const open = frame.slice();
+      for (const p of eyes) warpEye(frame, open, p, c);
+    }
+  }
+  if (S.talkOn && mouth.length >= 3) {
+    const raw = envelope ? (envelope[(t * S.fps) | 0] || 0) : talkAmplitude(t);
+    frame = jawDrop(frame, mouth, clamp(raw * S.talkAmt, 0, 1.5), S.jawPct, S.innerCol);
+  }
+  charCtx.putImageData(new ImageData(frame, W, H), 0, 0);
+
+  ctx.clearRect(0, 0, W, H);
+  let backdrop = false;
+  if (S.vizOn && !isOverlay(S.vizKind)) { drawViz(ctx, t); backdrop = true; }
+  if (bgCanvas) { drawBg(ctx, t); backdrop = true; }
+  if (S.vizOn && isOverlay(S.vizKind)) {
+    if (!backdrop) { ctx.fillStyle = '#0a0c12'; ctx.fillRect(0, 0, W, H); }
+    drawViz(ctx, t);
+  }
+  ctx.drawImage(charCanvas, 0, 0);
+  if (!exporting) drawTraces();
+}
+function drawTraces() {
+  const lw = Math.max(2, W / 400);
+  const poly = (pts, color, closed) => {
+    if (!pts.length) return;
+    ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = lw; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    if (closed && pts.length > 2) ctx.closePath();
+    ctx.stroke();
+    for (const [x, y] of pts) { ctx.beginPath(); ctx.arc(x, y, lw * 1.6, 0, TAU); ctx.fill(); }
+  };
+  for (const e of eyes) poly(e, 'rgba(100,170,255,0.9)', true);
+  poly(curEye, 'rgba(140,220,255,0.9)', false);
+  poly(mouth, 'rgba(240,106,154,0.9)', true);
+}
+
+// ---------- playback ----------
+function setPlaying(on) {
+  playing = on;
+  $('play').textContent = on ? '⏸ Pause' : '▶ Play';
+  if (on) {
+    playT0 = performance.now() - tCur * 1000;
+    if (audioEl && S.talkOn) { audioEl.currentTime = tCur; audioEl.play().catch(() => {}); }
+    requestAnimationFrame(tick);
+  } else if (audioEl) audioEl.pause();
+}
+function tick(now) {
+  if (!playing) return;
+  const t = ((now - playT0) / 1000) % S.dur;
+  if (t < tCur && audioEl && S.talkOn) { audioEl.currentTime = 0; audioEl.play().catch(() => {}); }
+  tCur = t;
+  if (now - lastDraw > 1000 / (exporting ? S.fps : 15) - 4) { lastDraw = now; render(tCur); updateTime(); }
+  requestAnimationFrame(tick);
+}
+const updateTime = () => { $('time').textContent = `${tCur.toFixed(2)} / ${S.dur.toFixed(1)} s`; };
+function reschedule() {
+  blinkStarts = [];
+  let t = 0.8 + Math.random() * 1.5;
+  while (t < S.dur - BLINK_LEN) { blinkStarts.push(t); t += 1.5 + Math.random() * 3.5; }
+}
+
+// ---------- image / audio / bg loading ----------
+function pickFile(accept, cb) {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = accept;
+  inp.onchange = () => inp.files[0] && cb(inp.files[0]);
+  inp.click();
+}
+function loadImage(file) {
+  createImageBitmap(file).then(bmp => {
+    // ponytail: cap at 1400px so per-pixel warps stay snappy in JS.
+    const s = Math.min(1, 1400 / Math.max(bmp.width, bmp.height));
+    W = Math.round(bmp.width * s); H = Math.round(bmp.height * s);
+    cv.width = W; cv.height = H; charCanvas.width = W; charCanvas.height = H;
+    const tmp = document.createElement('canvas');
+    tmp.width = W; tmp.height = H;
+    const tc = tmp.getContext('2d');
+    tc.drawImage(bmp, 0, 0, W, H);
+    originalData = tc.getImageData(0, 0, W, H);
+    baseData = originalData; bgRemoved = false;
+    eyes = []; curEye = []; mouth = []; bgCanvas = null; wavesCanvas = null;
+    tCur = 0; reschedule();
+    $('drop').style.display = 'none';
+    for (const id of ['play', 'expWebm', 'expPng', 'resetImg', 'bgRemove', 'finishEye', 'undoPt', 'clearTrace']) $(id).disabled = false;
+    status(`${W}×${H} loaded. Pick a Trace layer and outline the eyes and mouth.`);
+    render(0); updateTime();
+  }).catch(() => status('Could not read that image.'));
+}
+function loadBgImage(file) {
+  createImageBitmap(file).then(bmp => {
+    bgCanvas = document.createElement('canvas');
+    bgCanvas.width = W; bgCanvas.height = H;
+    const c = bgCanvas.getContext('2d');
+    const s = Math.max(W / bmp.width, H / bmp.height);
+    c.drawImage(bmp, (W - bmp.width * s) / 2, (H - bmp.height * s) / 2, bmp.width * s, bmp.height * s);
+    $('clearBg').disabled = false;
+    render(tCur);
+  }).catch(() => status('Could not read that background image.'));
+}
+function loadAudio(file) {
+  file.arrayBuffer().then(buf => new (window.AudioContext || window.webkitAudioContext)().decodeAudioData(buf)).then(b => {
+    audioBuf = b;
+    const n = b.length, mono = new Float64Array(n);
+    for (let ch = 0; ch < b.numberOfChannels; ch++) {
+      const d = b.getChannelData(ch);
+      for (let i = 0; i < n; i++) mono[i] += d[i] / b.numberOfChannels;
+    }
+    audioMono = mono;
+    computeEnvelope();
+    if (audioEl) URL.revokeObjectURL(audioEl.src);
+    audioEl = new Audio(URL.createObjectURL(file));
+    S.dur = Math.min(Math.ceil(b.duration * 2) / 2, 60);
+    $('dur').value = S.dur;
+    reschedule();
+    $('audioCtl').style.display = ''; $('clearAudio').disabled = false;
+    status(`Audio loaded: ${b.duration.toFixed(1)} s — duration matched, mouth now lip-syncs.`);
+    updateTime(); render(tCur);
+  }).catch(() => status('Could not decode that audio file.'));
+}
+const status = m => { $('status').textContent = m; };
+
+// ---------- tracing ----------
+let drag = null; // {arr, idx}
+const evPos = e => {
+  const r = cv.getBoundingClientRect();
+  return [clamp((e.clientX - r.left) / r.width * W, 0, W - 1), clamp((e.clientY - r.top) / r.height * H, 0, H - 1)];
+};
+function nearestPoint(p, maxPx) {
+  let best = null, bd = maxPx * maxPx;
+  const scan = arr => arr.forEach((pt, i) => {
+    const d = (pt[0] - p[0]) ** 2 + (pt[1] - p[1]) ** 2;
+    if (d < bd) { bd = d; best = { arr, idx: i }; }
+  });
+  for (const e of eyes) scan(e);
+  scan(curEye); scan(mouth);
+  return best;
+}
+cv.addEventListener('pointerdown', e => {
+  if (!baseData || e.button === 2 || exporting) return;
+  const p = evPos(e);
+  const near = nearestPoint(p, Math.max(8, W / 80));
+  if (near) { drag = near; cv.setPointerCapture(e.pointerId); return; }
+  if (S.trace === 'eye') curEye.push(p);
+  else if (S.trace === 'mouth') mouth.push(p);
+  else return;
+  render(tCur); updateTraceInfo();
+});
+cv.addEventListener('pointermove', e => {
+  if (!drag) return;
+  drag.arr[drag.idx] = evPos(e);
+  render(tCur);
+});
+cv.addEventListener('pointerup', () => { drag = null; });
+cv.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  if (!baseData) return;
+  const near = nearestPoint(evPos(e), Math.max(10, W / 60));
+  if (near) {
+    near.arr.splice(near.idx, 1);
+    if (near.arr !== curEye && near.arr !== mouth && near.arr.length < 3)
+      eyes = eyes.filter(a => a.length >= 3);
+    render(tCur); updateTraceInfo();
+  }
+});
+function finishEye() {
+  if (curEye.length >= 3) { eyes.push(curEye); curEye = []; render(tCur); updateTraceInfo(); }
+}
+function updateTraceInfo() {
+  $('traceInfo').textContent =
+    `${eyes.length} eye(s) traced${curEye.length ? `, ${curEye.length} pending point(s)` : ''}; mouth: ${mouth.length} point(s).`;
+}
+
+// ---------- export ----------
+function exportWebm() {
+  if (exporting || !baseData) return;
+  exporting = true;
+  $('expWebm').disabled = true;
+  const stream = cv.captureStream(S.fps);
+  let src = null;
+  if (audioBuf && S.talkOn) {
+    const ac = new (window.AudioContext || window.webkitAudioContext)();
+    src = ac.createBufferSource(); src.buffer = audioBuf;
+    const dest = ac.createMediaStreamDestination();
+    src.connect(dest);
+    stream.addTrack(dest.stream.getAudioTracks()[0]);
+  }
+  const mime = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find(m => MediaRecorder.isTypeSupported(m)) || '';
+  const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+  const chunks = [];
+  rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+  rec.onstop = () => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(chunks, { type: 'video/webm' }));
+    a.download = 'moranima.webm';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    exporting = false;
+    $('expWebm').disabled = false;
+    setPlaying(false);
+    status('Exported moranima.webm — recording happens in real time, so length = duration.');
+  };
+  tCur = 0;
+  if (audioEl) audioEl.pause();
+  rec.start();
+  if (src) src.start();
+  setPlaying(true);
+  status(`Recording ${S.dur.toFixed(1)} s of WebM…`);
+  const iv = setInterval(() => {
+    if (!exporting) return clearInterval(iv);
+    status(`Recording… ${tCur.toFixed(1)} / ${S.dur.toFixed(1)} s`);
+  }, 250);
+  setTimeout(() => { clearInterval(iv); rec.stop(); if (src) src.stop(); }, S.dur * 1000);
+}
+function exportPng() {
+  exporting = true; render(tCur); exporting = false;
+  cv.toBlob(b => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(b);
+    a.download = 'moranima-frame.png';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  });
+  render(tCur);
+}
+
+// ---------- wire up UI ----------
+function bindRange(id, key, fmt, after) {
+  $(id).addEventListener('input', () => {
+    S[key] = parseFloat($(id).value);
+    if ($(id + 'V')) $(id + 'V').textContent = fmt ? fmt(S[key]) : S[key];
+    if (after) after();
+    if (!playing) render(tCur);
+  });
+}
+bindRange('bgTol', 'bgTol', v => v | 0, () => { if (bgRemoved) { baseData = removeBackground(originalData, S.bgTol); } });
+bindRange('jawPct', 'jawPct', v => v.toFixed(2));
+bindRange('talkAmt', 'talkAmt', v => v.toFixed(2));
+bindRange('sens', 'sens', v => v.toFixed(2), computeEnvelope);
+bindRange('gate', 'gate', v => v.toFixed(3), computeEnvelope);
+bindRange('smooth', 'smooth', v => v.toFixed(2), computeEnvelope);
+bindRange('bgSpeed', 'bgSpeed', v => v.toFixed(2));
+bindRange('bgAmt', 'bgAmt', v => v.toFixed(2));
+bindRange('vizSpeed', 'vizSpeed', v => v.toFixed(2));
+bindRange('vizHue', 'vizHue', v => v | 0);
+for (const [id, key] of [['blinkOn', 'blinkOn'], ['talkOn', 'talkOn'], ['vizOn', 'vizOn']])
+  $(id).addEventListener('change', e => { S[key] = e.target.checked; if (!playing) render(tCur); });
+for (const [id, key] of [['traceSel', 'trace'], ['bgMotion', 'bgMotion'], ['vizKind', 'vizKind']])
+  $(id).addEventListener('change', e => { S[key] = e.target.value; if (!playing) render(tCur); });
+$('innerCol').addEventListener('input', e => {
+  const h = e.target.value;
+  S.innerCol = [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+  if (!playing) render(tCur);
+});
+$('dur').addEventListener('change', e => { S.dur = clamp(parseFloat(e.target.value) || 6, 1, 60); reschedule(); updateTime(); });
+$('fps').addEventListener('change', e => { S.fps = clamp(parseInt(e.target.value) || 25, 5, 60); computeEnvelope(); });
+$('openImg').onclick = () => pickFile('image/*', loadImage);
+$('resetImg').onclick = () => { baseData = originalData; bgRemoved = false; render(tCur); status('Image reset to original.'); };
+$('bgRemove').onclick = () => {
+  baseData = removeBackground(originalData, S.bgTol); bgRemoved = true;
+  render(tCur); status('Background removed — adjust Tolerance if too much or too little went transparent.');
+};
+$('loadBg').onclick = () => baseData ? pickFile('image/*', loadBgImage) : status('Load a character image first.');
+$('clearBg').onclick = () => { bgCanvas = null; $('clearBg').disabled = true; render(tCur); };
+$('loadAudio').onclick = () => pickFile('audio/*', loadAudio);
+$('clearAudio').onclick = () => {
+  audioBuf = audioMono = envelope = null;
+  if (audioEl) { audioEl.pause(); URL.revokeObjectURL(audioEl.src); audioEl = null; }
+  $('audioCtl').style.display = 'none'; $('clearAudio').disabled = true;
+  status('Audio cleared — back to the built-in speech rhythm.');
+};
+$('finishEye').onclick = finishEye;
+$('undoPt').onclick = () => {
+  if (S.trace === 'mouth') mouth.pop(); else curEye.pop();
+  render(tCur); updateTraceInfo();
+};
+$('clearTrace').onclick = () => {
+  if (S.trace === 'mouth') mouth = [];
+  else { eyes = []; curEye = []; }
+  render(tCur); updateTraceInfo();
+};
+$('reshuffle').onclick = () => { reschedule(); if (!playing) render(tCur); };
+$('play').onclick = () => setPlaying(!playing);
+$('expWebm').onclick = exportWebm;
+$('expPng').onclick = exportPng;
+document.addEventListener('keydown', e => {
+  if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
+  if (e.key === ' ') { e.preventDefault(); if (baseData) setPlaying(!playing); }
+  else if (e.key === 'Enter') finishEye();
+  else if (e.key === 'Escape') { curEye = []; render(tCur); updateTraceInfo(); }
+  else if (e.key === 'Backspace' || e.key === 'Delete') { $('undoPt').click(); }
+});
+const stage = $('stage');
+stage.addEventListener('dragover', e => e.preventDefault());
+stage.addEventListener('drop', e => {
+  e.preventDefault();
+  const f = e.dataTransfer.files[0];
+  if (!f) return;
+  if (f.type.startsWith('audio')) loadAudio(f);
+  else if (f.type.startsWith('image')) loadImage(f);
+});
+</script>
+</body>
+</html>
