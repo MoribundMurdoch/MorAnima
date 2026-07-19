@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>MorAnima — Web Studio</title>
 <meta name="description" content="Animate a still character image in your browser: blink, lip-sync to audio, background FX. Export WebM.">
 <style>
@@ -34,9 +34,11 @@
   button.primary { border-color: var(--accent); color: var(--accent); }
   .hint { color: var(--muted); font-size: 12px; margin: 4px 0; }
   #stage { display: flex; flex-direction: column; align-items: center; padding: 14px; gap: 10px; }
-  #wrap { position: relative; max-width: 100%;
+  #wrap { position: relative; display: inline-block; max-width: 100%;
     background: repeating-conic-gradient(#171c30 0 25%, #121627 0 50%) 0 0 / 24px 24px; border: 1px solid var(--edge); }
+  #scroller { max-width: 100%; overflow: auto; }
   #cv { display: block; max-width: 100%; height: auto; }
+  #mnav, #zoomctl { display: none; }
   #drop { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
     color: var(--muted); font-size: 15px; text-align: center; padding: 30px; pointer-events: none; }
   #transport { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; }
@@ -44,6 +46,34 @@
   #status { color: var(--muted); font-size: 12px; min-height: 1.2em; text-align: center; }
   .keys { color: var(--muted); font-size: 11px; text-align: center; max-width: 640px; }
   kbd { background: #18203a; border: 1px solid var(--edge); border-radius: 3px; padding: 0 5px; font-size: 11px; }
+
+  /* ---------- mobile: canvas on top, one tab's controls below, bottom nav ---------- */
+  @media (max-width: 820px), (pointer: coarse) and (max-height: 820px) {
+    body { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
+    header { padding: 6px 12px; flex: none; }
+    header a { display: none; }
+    main { display: flex; flex-direction: column; flex: 1; min-height: 0; grid-template-columns: none; }
+    #stage { order: 1; flex: none; padding: 8px 8px 4px; gap: 6px; }
+    #scroller { max-height: 46dvh; -webkit-overflow-scrolling: touch; }
+    aside { order: 2; flex: 1; min-height: 0; border-right: none; border-top: 1px solid var(--edge);
+      max-height: none; padding: 4px 14px 12px; }
+    aside details { display: none; border-bottom: none; }
+    aside details.tab-active { display: block; }
+    aside summary { padding: 6px 0; }
+    .keys { display: none; }
+    #zoomctl { display: inline-flex; gap: 6px; }
+    button { padding: 10px 14px; font-size: 15px; border-radius: 8px; }
+    input[type=range] { min-width: 120px; height: 28px; }
+    input[type=number] { padding: 8px; font-size: 15px; width: 72px; }
+    select { padding: 8px; font-size: 15px; }
+    .row { margin: 10px 0; }
+    #mnav { display: flex; flex: none; border-top: 1px solid var(--edge); background: var(--panel);
+      padding-bottom: env(safe-area-inset-bottom); }
+    #mnav button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+      background: none; border: none; border-radius: 0; color: var(--muted); font-size: 11px; padding: 8px 0 6px; }
+    #mnav button .ic { font-size: 20px; line-height: 1; }
+    #mnav button.active { color: var(--accent); }
+  }
 </style>
 </head>
 <body>
@@ -53,21 +83,21 @@
 </header>
 <main>
 <aside>
-  <details open><summary>Character</summary>
+  <details open data-tab="image"><summary>Character</summary>
     <div class="row"><button id="openImg" class="primary">Open Image…</button><button id="resetImg" disabled>Reset</button></div>
     <div class="row"><button id="bgRemove" disabled>Remove Background</button></div>
     <div class="row"><label>Tolerance</label><input type="range" id="bgTol" min="0" max="120" step="1" value="30"><span class="val" id="bgTolV">30</span></div>
     <p class="hint">Background removal detects the two most common border colors and makes them transparent.</p>
   </details>
-  <details open><summary>Trace</summary>
+  <details open data-tab="trace"><summary>Trace</summary>
     <div class="row"><label>Tracing</label><select id="traceSel"><option value="none">— off —</option><option value="eye">Eyes</option><option value="mouth">Mouth</option></select></div>
     <div class="row"><button id="finishEye" disabled>Finish Eye ⏎</button><button id="undoPt" disabled>Undo Point</button><button id="clearTrace" disabled>Clear</button></div>
     <p class="hint" id="traceInfo">Click the image to outline a shape. Drag points to adjust; right-click deletes the nearest point.</p>
   </details>
-  <details open><summary>Blink</summary>
+  <details open data-tab="animate"><summary>Blink</summary>
     <div class="row"><label><input type="checkbox" id="blinkOn" checked> Enable blinking</label><button id="reshuffle">↻ Reschedule</button></div>
   </details>
-  <details open><summary>Talk</summary>
+  <details open data-tab="animate"><summary>Talk</summary>
     <div class="row"><label><input type="checkbox" id="talkOn" checked> Enable talking</label></div>
     <div class="row"><label>Jaw drop</label><input type="range" id="jawPct" min="0.05" max="1" step="0.01" value="0.55"><span class="val" id="jawPctV">0.55</span></div>
     <div class="row"><label>Talk amount</label><input type="range" id="talkAmt" min="0" max="1.5" step="0.01" value="0.85"><span class="val" id="talkAmtV">0.85</span></div>
@@ -80,36 +110,46 @@
     </div>
     <p class="hint">Without audio, the jaw moves to a built-in speech rhythm.</p>
   </details>
-  <details><summary>Background</summary>
+  <details data-tab="scene"><summary>Background</summary>
     <div class="row"><button id="loadBg">Load BG Image…</button><button id="clearBg" disabled>✕</button></div>
     <div class="row"><label>Motion</label><select id="bgMotion"><option>Static</option><option>Zoom</option><option>Drift</option><option>Sway</option></select></div>
     <div class="row"><label>Speed</label><input type="range" id="bgSpeed" min="0.1" max="3" step="0.05" value="1"><span class="val" id="bgSpeedV">1.00</span></div>
     <div class="row"><label>Amount</label><input type="range" id="bgAmt" min="0" max="1" step="0.05" value="0.5"><span class="val" id="bgAmtV">0.50</span></div>
   </details>
-  <details><summary>Visualizer</summary>
+  <details data-tab="scene"><summary>Visualizer</summary>
     <div class="row"><label><input type="checkbox" id="vizOn"> Enable</label></div>
     <div class="row"><label>Kind</label><select id="vizKind"><option>Bars</option><option>Waves</option><option>Starfield</option><option>Fireflies</option><option>Snow</option><option>Embers</option></select></div>
     <div class="row"><label>Speed</label><input type="range" id="vizSpeed" min="0.1" max="3" step="0.05" value="1"><span class="val" id="vizSpeedV">1.00</span></div>
     <div class="row"><label>Hue</label><input type="range" id="vizHue" min="0" max="360" step="1" value="200"><span class="val" id="vizHueV">200</span></div>
   </details>
+  <details open data-tab="export"><summary>Export</summary>
+    <div class="row"><label>Duration (s)</label><input type="number" id="dur" min="1" max="60" step="0.5" value="6"></div>
+    <div class="row"><label>FPS</label><input type="number" id="fps" min="5" max="60" step="1" value="25"></div>
+    <div class="row"><button id="expWebm" class="primary" disabled>Export WebM…</button><button id="expPng" disabled>Save Frame PNG</button></div>
+    <p class="hint">WebM records in real time, so export takes as long as the clip. Files land in your Downloads.</p>
+  </details>
 </aside>
 <section id="stage">
-  <div id="wrap">
+  <div id="scroller"><div id="wrap">
     <canvas id="cv" width="820" height="520"></canvas>
     <div id="drop">Drop a character image here<br>or use <b>Open Image…</b></div>
-  </div>
+  </div></div>
   <div id="transport">
     <button id="play" class="primary" disabled>▶ Play</button>
     <span id="time">0.00 / 6.0 s</span>
-    <label>Duration <input type="number" id="dur" min="1" max="60" step="0.5" value="6"></label>
-    <label>FPS <input type="number" id="fps" min="5" max="60" step="1" value="25"></label>
-    <button id="expWebm" disabled>Export WebM…</button>
-    <button id="expPng" disabled>Save Frame PNG</button>
+    <span id="zoomctl"><button id="zoomOut">−</button><button id="zoomFit">Fit</button><button id="zoomIn">+</button></span>
   </div>
   <div id="status"></div>
   <p class="keys"><kbd>Space</kbd> play/pause · <kbd>Enter</kbd> finish eye · <kbd>Esc</kbd> cancel trace · <kbd>Backspace</kbd> undo point · right-click deletes nearest point</p>
 </section>
 </main>
+<nav id="mnav">
+  <button data-tab="image" class="active"><span class="ic">🖼️</span>Image</button>
+  <button data-tab="trace"><span class="ic">✏️</span>Trace</button>
+  <button data-tab="animate"><span class="ic">🎬</span>Animate</button>
+  <button data-tab="scene"><span class="ic">✨</span>Scene</button>
+  <button data-tab="export"><span class="ic">📤</span>Export</button>
+</nav>
 <script>
 'use strict';
 const $ = id => document.getElementById(id);
@@ -522,6 +562,7 @@ function loadImage(file) {
     for (const id of ['play', 'expWebm', 'expPng', 'resetImg', 'bgRemove', 'finishEye', 'undoPt', 'clearTrace']) $(id).disabled = false;
     status(`${W}×${H} loaded. Pick a Trace layer and outline the eyes and mouth.`);
     render(0); updateTime();
+    if (getComputedStyle($('mnav')).display !== 'none') setTab('trace');
   }).catch(() => status('Could not read that image.'));
 }
 function loadBgImage(file) {
@@ -576,7 +617,7 @@ function nearestPoint(p, maxPx) {
 cv.addEventListener('pointerdown', e => {
   if (!baseData || e.button === 2 || exporting) return;
   const p = evPos(e);
-  const near = nearestPoint(p, Math.max(8, W / 80));
+  const near = nearestPoint(p, (e.pointerType === 'touch' ? 2.5 : 1) * Math.max(8, W / 80));
   if (near) { drag = near; cv.setPointerCapture(e.pointerId); return; }
   if (S.trace === 'eye') curEye.push(p);
   else if (S.trace === 'mouth') mouth.push(p);
@@ -731,6 +772,40 @@ document.addEventListener('keydown', e => {
   else if (e.key === 'Escape') { curEye = []; render(tCur); updateTraceInfo(); }
   else if (e.key === 'Backspace' || e.key === 'Delete') { $('undoPt').click(); }
 });
+// ---------- mobile: bottom-nav tabs, canvas zoom, touch behavior ----------
+function setTab(name) {
+  document.querySelectorAll('aside details').forEach(d => {
+    const on = d.dataset.tab === name;
+    d.classList.toggle('tab-active', on);
+    if (on) d.open = true;
+  });
+  document.querySelectorAll('#mnav button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelector('aside').scrollTop = 0;
+}
+document.getElementById('mnav').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (b) setTab(b.dataset.tab);
+});
+setTab('image');
+
+let zoom = 1;
+function applyZoom() {
+  if (zoom <= 1) { zoom = 1; cv.style.width = ''; cv.style.maxWidth = ''; }
+  else {
+    cv.style.maxWidth = 'none';
+    cv.style.width = ($('scroller').clientWidth * zoom) + 'px';
+  }
+  $('zoomFit').textContent = zoom === 1 ? 'Fit' : Math.round(zoom * 100) + '%';
+}
+$('zoomIn').onclick = () => { zoom = Math.min(zoom + 0.5, 4); applyZoom(); };
+$('zoomOut').onclick = () => { zoom = Math.max(zoom - 0.5, 1); applyZoom(); };
+$('zoomFit').onclick = () => { zoom = 1; applyZoom(); };
+
+// While a trace layer is active, touches place points instead of scrolling the zoomed canvas.
+function applyTouchMode() { cv.style.touchAction = S.trace === 'none' ? 'auto' : 'none'; }
+$('traceSel').addEventListener('change', applyTouchMode);
+applyTouchMode();
+
 const stage = $('stage');
 stage.addEventListener('dragover', e => e.preventDefault());
 stage.addEventListener('drop', e => {
