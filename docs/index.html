@@ -614,22 +614,73 @@ function nearestPoint(p, maxPx) {
   scan(curEye); scan(mouth);
   return best;
 }
+// Pinch-zoom / pan run only inside the Android wrapper (window.MorAnima);
+// in a normal browser these structures stay empty and behavior is unchanged.
+const touches = new Map();
+let pinchPrev = null, panLast = null, addedBy = null;
 cv.addEventListener('pointerdown', e => {
   if (!baseData || e.button === 2 || exporting) return;
+  if (window.MorAnima && e.pointerType === 'touch') {
+    touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    cv.setPointerCapture(e.pointerId);
+    if (touches.size === 2) {
+      // Second finger means pinch, not a point: take back the first finger's point.
+      if (addedBy) { addedBy.pop(); addedBy = null; render(tCur); updateTraceInfo(); }
+      drag = null; panLast = null;
+      const [a, b] = [...touches.values()];
+      pinchPrev = { mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, d: Math.hypot(a.x - b.x, a.y - b.y) };
+      return;
+    }
+  }
   const p = evPos(e);
   const near = nearestPoint(p, (e.pointerType === 'touch' ? 2.5 : 1) * Math.max(8, W / 80));
   if (near) { drag = near; cv.setPointerCapture(e.pointerId); return; }
-  if (S.trace === 'eye') curEye.push(p);
-  else if (S.trace === 'mouth') mouth.push(p);
-  else return;
+  if (S.trace === 'eye') { curEye.push(p); addedBy = curEye; }
+  else if (S.trace === 'mouth') { mouth.push(p); addedBy = mouth; }
+  else {
+    if (window.MorAnima && e.pointerType === 'touch') panLast = { x: e.clientX, y: e.clientY };
+    return;
+  }
   render(tCur); updateTraceInfo();
 });
 cv.addEventListener('pointermove', e => {
+  if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinchPrev && touches.size === 2) {
+    const [a, b] = [...touches.values()];
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    const d = Math.hypot(a.x - b.x, a.y - b.y);
+    const sc = $('scroller'), r = sc.getBoundingClientRect();
+    // Keep the content that was under the pinch midpoint anchored to it,
+    // so fingers moving together pan and fingers spreading zoom in place.
+    const ox = sc.scrollLeft + pinchPrev.mid.x - r.left;
+    const oy = sc.scrollTop + pinchPrev.mid.y - r.top;
+    const w0 = cv.clientWidth;
+    zoom = clamp(zoom * d / Math.max(pinchPrev.d, 1), 1, 4);
+    applyZoom();
+    const s = cv.clientWidth / w0;
+    sc.scrollLeft = ox * s - (mid.x - r.left);
+    sc.scrollTop = oy * s - (mid.y - r.top);
+    pinchPrev = { mid, d };
+    return;
+  }
+  if (panLast) {
+    const sc = $('scroller');
+    sc.scrollLeft -= e.clientX - panLast.x;
+    sc.scrollTop -= e.clientY - panLast.y;
+    panLast = { x: e.clientX, y: e.clientY };
+    return;
+  }
   if (!drag) return;
   drag.arr[drag.idx] = evPos(e);
   render(tCur);
 });
-cv.addEventListener('pointerup', () => { drag = null; });
+const endPointer = e => {
+  touches.delete(e.pointerId);
+  if (touches.size < 2) pinchPrev = null;
+  drag = null; panLast = null; addedBy = null;
+};
+cv.addEventListener('pointerup', endPointer);
+cv.addEventListener('pointercancel', endPointer);
 cv.addEventListener('contextmenu', e => {
   e.preventDefault();
   if (!baseData) return;
@@ -801,10 +852,13 @@ $('zoomIn').onclick = () => { zoom = Math.min(zoom + 0.5, 4); applyZoom(); };
 $('zoomOut').onclick = () => { zoom = Math.max(zoom - 0.5, 1); applyZoom(); };
 $('zoomFit').onclick = () => { zoom = 1; applyZoom(); };
 
-// While a trace layer is active, touches place points instead of scrolling the zoomed canvas.
-function applyTouchMode() { cv.style.touchAction = S.trace === 'none' ? 'auto' : 'none'; }
+// While a trace layer is active, touches place points instead of scrolling the
+// zoomed canvas. Inside the Android wrapper the canvas always owns its touches
+// (pinch zoom + one/two-finger pan are handled in the pointer handlers above).
+function applyTouchMode() { cv.style.touchAction = (window.MorAnima || S.trace !== 'none') ? 'none' : 'auto'; }
 $('traceSel').addEventListener('change', applyTouchMode);
 applyTouchMode();
+if (window.MorAnima) $('traceInfo').textContent += ' Pinch with two fingers to zoom.';
 
 const stage = $('stage');
 stage.addEventListener('dragover', e => e.preventDefault());
