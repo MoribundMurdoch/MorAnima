@@ -5,6 +5,33 @@ edition = "2021"
 description = "MorAnima — layer multiple animation effects (blink, talk, background FX) on a still character image and export a Kdenlive-ready frame sequence."
 license = "Unlicense"
 
+[package.metadata.deb]
+maintainer = "MoribundMurdoch <moribundenglish@gmail.com>"
+copyright = "Unlicense — public domain"
+section = "graphics"
+depends = "libwebkit2gtk-4.1-0, libgtk-3-0"
+recommends = "ffmpeg"
+extended-description = """\
+MorAnima layers animation effects on a single still character image: \
+liquify-style blinking, jaw-drop talking with real audio lip-sync, \
+background removal, animated backdrops and particle overlays. Exports \
+transparent WebM, MP4, GIF, or a Kdenlive-ready PNG frame sequence \
+through ffmpeg."""
+assets = [
+  ["target/release/moranima", "usr/bin/", "755"],
+  ["packaging/moranima.desktop", "usr/share/applications/", "644"],
+  ["assets/icon.svg", "usr/share/icons/hicolor/scalable/apps/moranima.svg", "644"],
+  ["assets/icons/moranima-16.png", "usr/share/icons/hicolor/16x16/apps/moranima.png", "644"],
+  ["assets/icons/moranima-24.png", "usr/share/icons/hicolor/24x24/apps/moranima.png", "644"],
+  ["assets/icons/moranima-32.png", "usr/share/icons/hicolor/32x32/apps/moranima.png", "644"],
+  ["assets/icons/moranima-48.png", "usr/share/icons/hicolor/48x48/apps/moranima.png", "644"],
+  ["assets/icons/moranima-64.png", "usr/share/icons/hicolor/64x64/apps/moranima.png", "644"],
+  ["assets/icons/moranima-128.png", "usr/share/icons/hicolor/128x128/apps/moranima.png", "644"],
+  ["assets/icons/moranima-256.png", "usr/share/icons/hicolor/256x256/apps/moranima.png", "644"],
+  ["assets/icons/moranima-512.png", "usr/share/icons/hicolor/512x512/apps/moranima.png", "644"],
+  ["README.md", "usr/share/doc/moranima/README.md", "644"],
+]
+
 [dependencies]
 dioxus = { version = "0.7", features = ["desktop"] }
 image = "0.25"

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=MorAnima
+GenericName=Character Animator
+Comment=Animate a still character image — blink, lip-sync, background FX — and export video
+Exec=moranima
+Icon=moranima
+Terminal=false
+Categories=AudioVideo;Video;
+Keywords=animation;lipsync;character;blink;export;kdenlive;
+StartupWMClass=moranima

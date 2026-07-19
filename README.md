@@ -37,11 +37,26 @@ All effects preview live in the app with playback, a timeline, click-to-seek, zo
 - [ffmpeg](https://ffmpeg.org/) on your `PATH` — used for audio decoding and video export. Without it you can still preview and export PNG sequences.
 - Linux / macOS / Windows (built on [Dioxus](https://dioxuslabs.com/) desktop)
 
+## Install
+
+Grab a package from the [latest release](https://github.com/MoribundMurdoch/MorAnima/releases/latest):
+
+| Distro | Package | Install |
+| --- | --- | --- |
+| Debian / Ubuntu | `moranima_*_amd64.deb` | `sudo apt install ./moranima_*_amd64.deb` |
+| Fedora / openSUSE | `moranima-*.x86_64.rpm` | `sudo dnf install ./moranima-*.x86_64.rpm` |
+| Arch | `moranima-*-x86_64.pkg.tar.zst` | `sudo pacman -U moranima-*-x86_64.pkg.tar.zst` |
+| Any Linux | `moranima-*-linux-x86_64.tar.gz` | unpack; run `./moranima` |
+
+All packages install the app icon and a desktop menu entry. Install ffmpeg through your package manager for audio and video export.
+
 ## Build & run
 
 ```sh
 cargo run --release
 ```
+
+Packaging recipes (`.desktop`, RPM spec, PKGBUILD, cargo-deb metadata) live in [`packaging/`](packaging/) and `Cargo.toml`.
 
 ## Usage
 

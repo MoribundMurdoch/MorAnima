@@ -1,0 +1,24 @@
+# Packages the prebuilt release binary from the repo checkout:
+#   cargo build --release && cd packaging && makepkg -f
+pkgname=moranima
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Animate a still character image — blink, lip-sync, background FX — and export video"
+arch=('x86_64')
+url="https://github.com/MoribundMurdoch/MorAnima"
+license=('Unlicense')
+depends=('webkit2gtk-4.1' 'gtk3' 'ffmpeg')
+options=('!debug')
+source=()
+
+package() {
+  local root="$startdir/.."
+  install -Dm755 "$root/target/release/moranima" "$pkgdir/usr/bin/moranima"
+  install -Dm644 "$root/packaging/moranima.desktop" "$pkgdir/usr/share/applications/moranima.desktop"
+  install -Dm644 "$root/assets/icon.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/moranima.svg"
+  for s in 16 24 32 48 64 128 256 512; do
+    install -Dm644 "$root/assets/icons/moranima-$s.png" "$pkgdir/usr/share/icons/hicolor/${s}x${s}/apps/moranima.png"
+  done
+  install -Dm644 "$root/LICENSE" "$pkgdir/usr/share/licenses/moranima/LICENSE"
+  install -Dm644 "$root/README.md" "$pkgdir/usr/share/doc/moranima/README.md"
+}
