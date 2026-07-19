@@ -47,7 +47,7 @@ Grab a package from the [latest release](https://github.com/MoribundMurdoch/MorA
 | Fedora / openSUSE | `moranima-*.x86_64.rpm` | `sudo dnf install ./moranima-*.x86_64.rpm` |
 | Arch | `moranima-*-x86_64.pkg.tar.zst` | `sudo pacman -U moranima-*-x86_64.pkg.tar.zst` |
 | Any Linux | `moranima-*-linux-x86_64.tar.gz` | unpack; run `./moranima` |
-| Android | `moranima-*.apk` | sideload; allow "install unknown apps" |
+| Android 10+ | `moranima-*.apk` | download on the phone, tap to install; allow "install unknown apps" |
 
 All Linux packages install the app icon and a desktop menu entry. Install ffmpeg through your package manager for audio and video export. The Android app wraps the web version in a WebView: it exports WebM and PNG frames to Downloads, and its build recipe lives in [`android/`](android/).
 
