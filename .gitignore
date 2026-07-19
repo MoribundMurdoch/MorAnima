@@ -3,3 +3,6 @@
 /packaging/pkg
 /packaging/src
 /packaging/*.pkg.tar.zst
+/android/build
+/android/assets
+

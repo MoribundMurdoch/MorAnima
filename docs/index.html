@@ -609,6 +609,20 @@ function updateTraceInfo() {
 }
 
 // ---------- export ----------
+function saveBlob(blob, name) {
+  if (window.MorAnima && MorAnima.save) {
+    // Android wrapper: hand the bytes to the native side, which writes to Downloads.
+    const r = new FileReader();
+    r.onload = () => MorAnima.save(name, r.result.split(',')[1], blob.type || 'application/octet-stream');
+    r.readAsDataURL(blob);
+    return;
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
 function exportWebm() {
   if (exporting || !baseData) return;
   exporting = true;
@@ -627,11 +641,7 @@ function exportWebm() {
   const chunks = [];
   rec.ondataavailable = e => e.data.size && chunks.push(e.data);
   rec.onstop = () => {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob(chunks, { type: 'video/webm' }));
-    a.download = 'moranima.webm';
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    saveBlob(new Blob(chunks, { type: 'video/webm' }), 'moranima.webm');
     exporting = false;
     $('expWebm').disabled = false;
     setPlaying(false);
@@ -651,13 +661,7 @@ function exportWebm() {
 }
 function exportPng() {
   exporting = true; render(tCur); exporting = false;
-  cv.toBlob(b => {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(b);
-    a.download = 'moranima-frame.png';
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-  });
+  cv.toBlob(b => saveBlob(b, 'moranima-frame.png'));
   render(tCur);
 }
 

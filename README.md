@@ -1,10 +1,10 @@
 # MorAnima
 
-Bring a still character image to life. MorAnima is a desktop app that layers animation effects — blinking, audio-driven lip-sync, background motion, and ambient particle FX — on top of a single PNG, then exports the result as video, GIF, or a Kdenlive-ready PNG frame sequence.
+Bring a still character image to life. MorAnima is a desktop app that layers animation effects (blinking, audio-driven lip-sync, background motion, and ambient particle FX) on top of a single PNG, then exports the result as video, GIF, or a Kdenlive-ready PNG frame sequence.
 
 Trace your character's eyes and mouth once with a few clicks; MorAnima does the rest with pure pixel warping. No rigging, no sprite sheets, no per-frame drawing.
 
-**[▶ Try the web version](https://moribundmurdoch.github.io/MorAnima/)** — the same effects ported to canvas + WebAudio, running entirely in your browser ([source](docs/index.html)). The desktop app remains the full studio: the web version exports WebM only (no MP4/GIF/PNG-sequence), and skips the perspective-tilt background motion.
+**[▶ Try the web version](https://moribundmurdoch.github.io/MorAnima/)**: the same effects ported to canvas + WebAudio, running entirely in your browser ([source](docs/index.html)). The desktop app remains the full studio: the web version exports WebM only (no MP4/GIF/PNG-sequence), and skips the perspective-tilt background motion.
 
 ![MorAnima with a character loaded, eyes and mouth traced, timeline below](docs/Hero-Shot.png)
 
@@ -14,16 +14,16 @@ Trace your character's eyes and mouth once with a few clicks; MorAnima does the 
 
 ## Features
 
-- **Blink** — trace each eye as a polygon and get natural liquify-style blinks: lids descend with stretched skin, a soft lash shadow, and feathered edges. Blinks are randomly scheduled and deterministic, so exports match the preview exactly.
-- **Talk** — trace the mouth and the jaw drops in sync with either:
+- **Blink**: trace each eye as a polygon and get natural liquify-style blinks: lids descend with stretched skin, a soft lash shadow, and feathered edges. Blinks are randomly scheduled and deterministic, so exports match the preview exactly.
+- **Talk**: trace the mouth and the jaw drops in sync with either:
   - a built-in synthetic speech rhythm, or
   - **real audio lip-sync**: load any audio file and a bandpass + RMS envelope (with sensitivity, noise gate, and smoothing controls) drives the mouth. The audio is muxed into the export.
-- **Background removal** — one click detects the border colors of your image and makes them transparent, so flat-background renders become clean overlays.
-- **Background image & camera motion** — drop in a backdrop and give it a gentle zoom, drift, sway, or perspective tilt.
-- **Visualizers & particles** — animated bars, waves, starfield backdrops, or firefly / snow / ember overlays composited around your character.
+- **Background removal**: one click detects the border colors of your image and makes them transparent, so flat-background renders become clean overlays.
+- **Background image & camera motion**: drop in a backdrop and give it a gentle zoom, drift, sway, or perspective tilt.
+- **Visualizers & particles**: animated bars, waves, starfield backdrops, or firefly / snow / ember overlays composited around your character.
 - **Export formats**
-  - WebM (VP9) with transparency preserved — perfect for compositing
-  - MP4 (H.264) — plays everywhere
+  - WebM (VP9) with transparency preserved, perfect for compositing
+  - MP4 (H.264), which plays everywhere
   - Looping animated GIF
   - Lossless PNG sequence for import into Kdenlive or any NLE
 
@@ -34,7 +34,7 @@ All effects preview live in the app with playback, a timeline, click-to-seek, zo
 ## Requirements
 
 - [Rust](https://rustup.rs/) (2021 edition)
-- [ffmpeg](https://ffmpeg.org/) on your `PATH` — used for audio decoding and video export. Without it you can still preview and export PNG sequences.
+- [ffmpeg](https://ffmpeg.org/) on your `PATH`, used for audio decoding and video export. Without it you can still preview and export PNG sequences.
 - Linux / macOS / Windows (built on [Dioxus](https://dioxuslabs.com/) desktop)
 
 ## Install
@@ -47,8 +47,9 @@ Grab a package from the [latest release](https://github.com/MoribundMurdoch/MorA
 | Fedora / openSUSE | `moranima-*.x86_64.rpm` | `sudo dnf install ./moranima-*.x86_64.rpm` |
 | Arch | `moranima-*-x86_64.pkg.tar.zst` | `sudo pacman -U moranima-*-x86_64.pkg.tar.zst` |
 | Any Linux | `moranima-*-linux-x86_64.tar.gz` | unpack; run `./moranima` |
+| Android | `moranima-*.apk` | sideload; allow "install unknown apps" |
 
-All packages install the app icon and a desktop menu entry. Install ffmpeg through your package manager for audio and video export.
+All Linux packages install the app icon and a desktop menu entry. Install ffmpeg through your package manager for audio and video export. The Android app wraps the web version in a WebView: it exports WebM and PNG frames to Downloads, and its build recipe lives in [`android/`](android/).
 
 ## Build & run
 
@@ -72,10 +73,10 @@ All pixel work lives in [`src/effects.rs`](src/effects.rs) as pure functions, wi
 
 - **Blink** is a column-wise liquify warp inside the traced eye polygon: the upper lid descends sampling stretched skin from above, the eye content compresses into the closing slit, and everything is feathered back into the original at the trace boundary.
 - **Lip-sync** decodes audio to 44.1 kHz mono through ffmpeg, applies a zero-phase 60–5000 Hz bandpass, and converts per-frame RMS into mouth amplitudes (normalize → sensitivity → gate → gamma → optional Gaussian smoothing).
-- **Export** renders frames on the CPU and pipes raw RGBA straight into ffmpeg — no temp files.
+- **Export** renders frames on the CPU and pipes raw RGBA straight into ffmpeg, with no temp files.
 
 Everything is deterministic for a given seed and settings, so what you preview is exactly what you export.
 
 ## License
 
-[Unlicense](https://unlicense.org/) — public domain.
+[Unlicense](https://unlicense.org/), public domain.
